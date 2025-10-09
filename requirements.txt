@@ -1,0 +1,28 @@
+# Core
+langgraph>=0.6.8,<0.7
+langchain>=0.3.7,<0.4
+langchain-openai>=0.3.0
+langchain-community>=0.3.7
+tiktoken>=0.7.0
+
+# Vectorstore / RAG
+faiss-cpu>=1.8.0
+pypdf>=5.0.0
+
+# Optional: persistent checkpointer
+langgraph-checkpoint-sqlite>=2.0.11
+
+# Web / API
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.1
+pydantic>=2.8.2
+
+# Web search tools
+duckduckgo-search>=7.2.1
+# tavily is optional; installed lazily by user if needed
+
+# Optional: visualization
+graphviz>=0.20.3
+
+langchain-text-splitters>=0.3.0
