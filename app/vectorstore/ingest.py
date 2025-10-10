@@ -64,6 +64,16 @@ def _load_documents() -> List[Document]:
 
 def build_index():
     docs = _load_documents()
+    if not docs:
+        print(
+            "[INFO] Keine Dokumente zum Indizieren gefunden – vorhandener Index wird entfernt.",
+            flush=True,
+        )
+        index_path = Path(INDEX_DIR)
+        if index_path.exists():
+            shutil.rmtree(index_path)
+        return
+
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
     )
@@ -87,28 +97,7 @@ def build_index():
         )
         return
 
-    if backend == "qdrant":
-        if not QDRANT_URL:
-            raise RuntimeError(
-                "QDRANT_URL ist nicht gesetzt. Hinterlege die Qdrant-Cloud-URL in der .env Datei."
-            )
-        client = get_qdrant_client()
-        Qdrant.from_documents(
-            chunks,
-            emb,
-            client=client,
-            collection_name=QDRANT_COLLECTION,
-            prefer_grpc=False,
-            force_recreate=True,
-        )
-        collections = client.get_collections()
-        print(
-            f"[OK] {len(chunks)} Chunks in Qdrant-Collection '{QDRANT_COLLECTION}' gespeichert."
-        )
-        names = [c.name for c in getattr(collections, "collections", [])]
-        if names:
-            print(f"       Bekannte Collections: {names}")
-        return
+    
 
     raise ValueError(
         f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss | qdrant"
