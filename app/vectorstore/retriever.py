@@ -1,29 +1,68 @@
 from __future__ import annotations
+
 import os
-from typing import List, Optional, Tuple
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_openai import OpenAIEmbeddings
+
+from langchain_community.vectorstores import FAISS, Qdrant
 from langchain_core.embeddings import Embeddings
-from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStore
+from qdrant_client import QdrantClient
+
+from app.vectorstore.embeddings import (
+    build_hf_embeddings,
+    build_openai_embeddings,
+)
 
 INDEX_DIR = os.getenv("INDEX_DIR", "data/index/faiss")
 EMBEDDINGS_PROVIDER = os.getenv("EMBEDDINGS_PROVIDER", "openai")
 OPENAI_EMBED_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 HF_EMBED_MODEL = os.getenv("HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+VECTORSTORE_BACKEND = os.getenv("VECTORSTORE_BACKEND", "qdrant").lower()
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "chatmitpdf")
+
 
 def _embedding() -> Embeddings:
     if EMBEDDINGS_PROVIDER.lower() == "openai":
-        return OpenAIEmbeddings(model=OPENAI_EMBED_MODEL)
+        return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
     else:
-        return HuggingFaceEmbeddings(model_name=HF_EMBED_MODEL)
+        return build_hf_embeddings(model=HF_EMBED_MODEL)
 
-def load_vectorstore() -> FAISS:
+
+def get_qdrant_client() -> QdrantClient:
+    if not QDRANT_URL:
+        raise RuntimeError(
+            "QDRANT_URL ist nicht gesetzt. Hinterlege die Qdrant-Cloud-URL in der .env Datei."
+        )
+    return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+
+
+def load_vectorstore() -> VectorStore:
     emb = _embedding()
-    vs = FAISS.load_local(
-        INDEX_DIR, emb, allow_dangerous_deserialization=True
+    backend = VECTORSTORE_BACKEND
+
+    if backend == "faiss":
+        return FAISS.load_local(
+            INDEX_DIR, emb, allow_dangerous_deserialization=True
+        )
+    if backend == "qdrant":
+        try:
+            client = get_qdrant_client()
+            return Qdrant(
+                client=client,
+                collection_name=QDRANT_COLLECTION,
+                embeddings=emb,
+            )
+        except Exception as exc:  # pragma: no cover - Cloud connectivity failure
+            raise RuntimeError(
+                "Konnte die Qdrant-Collection nicht laden. Prüfe URL/API-Key und führe den "
+                "Ingestions-Job erneut aus (python -m app.vectorstore.ingest)."
+            ) from exc
+
+    raise ValueError(
+        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss | qdrant"
     )
-    return vs
+
 
 def get_retriever(k: int = 4):
     vs = load_vectorstore()
