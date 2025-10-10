@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_community.vectorstores import FAISS, Qdrant
+from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -15,11 +15,9 @@ from app.vectorstore.retriever import (
     HF_EMBED_MODEL,
     INDEX_DIR,
     OPENAI_EMBED_MODEL,
-    QDRANT_COLLECTION,
-    QDRANT_URL,
     VECTORSTORE_BACKEND,
-    get_qdrant_client,
 )
+import shutil
 
 DOCS_DIR = os.getenv("DOCS_DIR", "data/docs")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
@@ -100,7 +98,7 @@ def build_index():
     
 
     raise ValueError(
-        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss | qdrant"
+        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss"
     )
 
 

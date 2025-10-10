@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +17,10 @@ BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
+# Load environment variables from .env early so clients (OpenAI etc.) see the keys
+load_dotenv()
+
+# Build the application graph (this will initialize ChatOpenAI which expects OPENAI_API_KEY)
 graph = get_graph()
 
 class ChatIn(BaseModel):
