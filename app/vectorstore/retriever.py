@@ -16,10 +16,7 @@ INDEX_DIR = os.getenv("INDEX_DIR", "data/index/faiss")
 EMBEDDINGS_PROVIDER = os.getenv("EMBEDDINGS_PROVIDER", "openai")
 OPENAI_EMBED_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 HF_EMBED_MODEL = os.getenv("HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-VECTORSTORE_BACKEND = os.getenv("VECTORSTORE_BACKEND", "qdrant").lower()
-QDRANT_URL = os.getenv("QDRANT_URL")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "chatmitpdf")
+VECTORSTORE_BACKEND = os.getenv("VECTORSTORE_BACKEND", "faiss").lower()
 
 
 def _embedding() -> Embeddings:
@@ -45,24 +42,7 @@ def load_vectorstore() -> VectorStore:
         return FAISS.load_local(
             INDEX_DIR, emb, allow_dangerous_deserialization=True
         )
-    if backend == "qdrant":
-        try:
-            client = get_qdrant_client()
-            return Qdrant(
-                client=client,
-                collection_name=QDRANT_COLLECTION,
-                embeddings=emb,
-            )
-        except Exception as exc:  # pragma: no cover - Cloud connectivity failure
-            raise RuntimeError(
-                "Konnte die Qdrant-Collection nicht laden. Prüfe URL/API-Key und führe den "
-                "Ingestions-Job erneut aus (python -m app.vectorstore.ingest)."
-            ) from exc
-
-    raise ValueError(
-        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss | qdrant"
-    )
-
+    
 
 def get_retriever(k: int = 4):
     vs = load_vectorstore()

@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage
 from app.graph import get_graph
+from app.vectorstore.ingest import build_index
 
 app = FastAPI(title="LangGraph RAG Multi-Agent API")
 
@@ -26,8 +27,8 @@ class ChatOut(BaseModel):
 
 @app.post("/chat", response_model=ChatOut)
 def chat(req: ChatIn):
-    config = {"configurable":{"thread_id": req.thread_id}}
-    result = graph.invoke({"messages":[HumanMessage(content=req.message)]}, config=config)
+    config = {"configurable": {"thread_id": req.thread_id}}
+    result = graph.invoke({"messages": [HumanMessage(content=req.message)]}, config=config)
     messages = result.get("messages", [])
     last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
     answer = last_ai.content if last_ai else "No answer."
