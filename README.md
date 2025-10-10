@@ -1,15 +1,16 @@
 # LangGraph RAG Multi‑Agent Chatbot (von Basics → Advanced)
 
 Ein komplettes, lokal lauffähiges Projekt, das Schritt für Schritt von einem einfachen LLM‑Call
-zu einem **zustandsbehafteten** (checkpointed) **Multi‑Agent**‑Chatbot mit **RAG** (FAISS) und optionaler **Websuche**
+zu einem **zustandsbehafteten** (checkpointed) **Multi‑Agent**‑Chatbot mit **RAG** (lokaler FAISS‑Index) und optionaler **Websuche**
 ausgebaut wird – basierend auf **LangGraph** + **LangChain**.
 
 ## Features
-- ✅ **RAG** mit FAISS (persistiert in `data/index/faiss`)
+- ✅ **RAG** via lokalem FAISS-Index (Voreinstellung, offline-freundlich)
 - ✅ **Multi‑Agent Routing** (`direct` | `rag` | `web`) via strukturierter LLM‑Entscheidung
 - ✅ **Tool‑Aufrufe** ohne `prebuilt`-Abhängigkeit (robust gegen API‑Änderungen)
 - ✅ **Memory / Checkpointing** via `MemorySaver` (optional: SQLite‑Saver)
 - ✅ **CLI** (`python -m app.cli`) und **kleine FastAPI** (`uvicorn app.api.server:app --reload`)
+- ✅ **Browser-Oberfläche** zum Hochladen, Anzeigen & Chatten über Dokumente
 - ✅ **Konfigurierbar** via `.env` (OpenAI / HF‑Embeddings, Websuche an/aus, Modelle)
 
 ---
@@ -28,15 +29,37 @@ cp .env.example .env
 # In .env API-Keys eintragen (mind. OPENAI_API_KEY für LLM + Embeddings, falls OpenAI gewählt)
 ```
 
+### Docker-Variante
+
+Alternativ kannst Du das komplette Backend inklusive Weboberfläche per Docker starten:
+
+```bash
+cp .env.example .env  # gewünschte Keys/Settings eintragen
+docker compose up --build
+```
+
+Der FastAPI-Server läuft anschließend unter http://127.0.0.1:8000 (Frontend ist im selben Container eingebettet).
+Dokumente und Artefakte werden aus dem lokalen `data/`- bzw. `artifacts/`-Ordner in den Container gemountet, sodass
+Du sie bequem bearbeiten kannst.
+
 > **Hinweis:** Standardmäßig nutzt das Projekt OpenAI‑Modelle. Alternativ kannst Du **HuggingFace**‑Embeddings wählen,
 > dann brauchst Du keinen OpenAI‑Key für die Vektordatenbank (nur fürs LLM, sofern Du ein OpenAI‑LLM nutzt).
 
 ## 3) Eigene Dokumente indizieren (RAG)
-Lege Deine Dateien unter `data/docs/` ab (unterstützt: `.md`, `.txt`, `.pdf`). Danach:
+Die Weboberfläche enthält einen Upload-Dialog. Jedes hochgeladene PDF/Markdown/Text-Dokument wird
+automatisch nach `data/docs/` gespeichert und der FAISS-Index unmittelbar aktualisiert – Du kannst
+also direkt danach chatten.
+
+Alternativ lassen sich Dateien auch manuell unter `data/docs/` ablegen und anschließend per Skript
+indizieren:
+
 ```bash
 python -m app.vectorstore.ingest
 ```
-Dadurch wird ein persistenter FAISS‑Index unter `data/index/faiss/` angelegt.
+
+Der Index wird unter `data/index/faiss/` abgelegt. Falls der direkte Aufruf der OpenAI-Embedding-API
+durch einen Proxy blockiert ist, wechsle per `EMBEDDINGS_PROVIDER=huggingface` auf lokale
+Sentence-Transformer.
 
 ## 4) Chatten (CLI)
 ```bash
@@ -50,9 +73,15 @@ uvicorn app.api.server:app --reload
 # POST http://127.0.0.1:8000/chat  JSON: {"thread_id":"demo", "message":"<Deine Frage>"}
 ```
 
+### Weboberfläche nutzen
+- Öffne im Browser: http://127.0.0.1:8000/
+- Lade eine Datei hoch oder wähle ein bestehendes Dokument aus der Liste.
+- Nutze die Vorschau (PDF-Viewer bzw. Textansicht), um den Inhalt zu prüfen.
+- Stelle Deine Fragen – der Assistent antwortet mit Kontext aus dem gewählten Dokument.
+
 ## 6) Routen & Agents
 - **Router** (LLM mit strukturiertem Output) entscheidet: `direct` (direkt antworten), `rag` (Vektor‑Suche) oder `web` (Websuche).
-- **RAG‑Agent**: nutzt den `retrieve`‑Tool (FAISS) iterativ, bis genug Kontext vorhanden ist, dann Antwort mit Quellen.
+- **RAG‑Agent**: nutzt den `retrieve`‑Tool (lokaler FAISS-Index) iterativ, bis genug Kontext vorhanden ist, dann Antwort mit Quellen.
 - **Web‑Agent**: nutzt `web_search` (DuckDuckGo ohne Key oder Tavily – wenn Key gesetzt).
 
 ## 7) Visualisierung (optional)
@@ -95,7 +124,7 @@ app/
   cli.py                   # CLI-Einstieg
 data/
   docs/                    # Deine Dokumente für RAG
-  index/                   # Persistenter FAISS-Index
+  index/                   # Persistenter FAISS-Index (nur bei VECTORSTORE_BACKEND=faiss)
 artifacts/                 # (optional) Graph-Bild, Dumps
 .env.example               # Konfigurationsbeispiel
 requirements.txt

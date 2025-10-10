@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LangGraph RAG Chat</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <header>
+        <h1>Chat mit Deinen Dokumenten</h1>
+        <p>
+          Lade PDFs oder Texte hoch, sieh Dir die Vorschau an und starte direkt eine Unterhaltung mit dem
+          eingebauten LangGraph-RAG-Assistenten. Jeder Upload aktualisiert automatisch den FAISS-Index.
+        </p>
+      </header>
+
+      <main>
+        <aside class="documents">
+          <section class="upload-card">
+            <h2>Dokument hochladen</h2>
+            <form id="upload-form" class="upload-form">
+              <label for="file-input">
+                <span>Ziehen &amp; ablegen oder anklicken</span>
+                <small>Unterstützt: PDF, Markdown (.md) &amp; Text (.txt)</small>
+              </label>
+              <input type="file" id="file-input" name="file" accept=".pdf,.md,.txt" required />
+              <button type="submit" id="upload-btn">Upload &amp; Index erneuern</button>
+              <p class="upload-status" id="upload-status" hidden></p>
+            </form>
+          </section>
+
+          <section class="document-card">
+            <h2>Dokumente</h2>
+            <p class="document-empty" id="document-empty">Noch keine Dokumente vorhanden.</p>
+            <ul class="document-list" id="document-list"></ul>
+          </section>
+
+          <section class="preview-card">
+            <h2>Vorschau</h2>
+            <div class="preview-surface">
+              <iframe
+                id="preview-frame"
+                class="preview-frame"
+                hidden
+                title="Dokument-Vorschau"
+              ></iframe>
+              <pre id="preview-text" class="preview-text" hidden></pre>
+              <p id="preview-empty" class="preview-empty">Kein Dokument ausgewählt.</p>
+            </div>
+          </section>
+        </aside>
+
+        <section class="conversation">
+          <div class="conversation-header">
+            <span>Aktives Dokument</span>
+            <strong id="active-document">–</strong>
+          </div>
+
+          <section class="chat" id="chat">
+            <ol id="messages" aria-live="polite"></ol>
+          </section>
+
+          <section class="controls">
+            <form id="chat-form">
+              <label class="thread">
+                Thread-ID
+                <input
+                  type="text"
+                  id="thread"
+                  name="thread"
+                  placeholder="z. B. demo"
+                  autocomplete="off"
+                />
+              </label>
+
+              <label class="message">
+                Nachricht
+                <textarea
+                  id="message"
+                  name="message"
+                  placeholder="Frage an den RAG-Assistenten"
+                  rows="3"
+                  required
+                ></textarea>
+              </label>
+
+              <div class="actions">
+                <button type="submit" id="send">Senden</button>
+                <button type="button" id="reset">Thread leeren</button>
+              </div>
+            </form>
+            <p class="status" id="status" hidden>Assistent denkt …</p>
+          </section>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          Dokumente werden automatisch nach dem Upload indiziert. Alternativ kannst Du manuell den Index mit
+          <code>python -m app.vectorstore.ingest</code> neu aufbauen.
+        </p>
+      </footer>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
