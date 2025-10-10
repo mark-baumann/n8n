@@ -1,10 +1,9 @@
 const form = document.getElementById("chat-form");
 const messagesEl = document.getElementById("messages");
-const threadInput = document.getElementById("thread");
 const messageInput = document.getElementById("message");
-const statusEl = document.getElementById("status");
-const sendBtn = document.getElementById("send");
-const resetBtn = document.getElementById("reset");
+const uploadForm = document.getElementById("upload-form");
+const fileInput = document.getElementById("file-upload");
+const pdfViewer = document.getElementById("pdf-viewer");
 
 const roles = {
   user: "Du",
@@ -48,7 +47,6 @@ async function sendMessage(event) {
     return;
   }
 
-  const threadId = threadInput.value.trim() || "default";
   appendMessage("user", message);
   messageInput.value = "";
   setLoading(true);
@@ -60,7 +58,6 @@ async function sendMessage(event) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        thread_id: threadId,
         message,
       }),
     });
@@ -81,18 +78,40 @@ async function sendMessage(event) {
   }
 }
 
-function resetThread() {
-  messagesEl.innerHTML = "";
-  const threadId = crypto.randomUUID().slice(0, 8);
-  threadInput.value = threadId;
-  appendMessage("system", `Neuer Thread angelegt: ${threadId}`);
-}
-
 form.addEventListener("submit", sendMessage);
-resetBtn.addEventListener("click", resetThread);
+
+uploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const file = fileInput.files[0];
+  if (!file) {
+    alert("Bitte wähle eine Datei aus.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch("/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    pdfViewer.src = `/data/${data.filename}`;
+    alert("Datei erfolgreich hochgeladen.");
+  } catch (error) {
+    console.error(error);
+    alert("Fehler beim Hochladen der Datei.");
+  }
+});
 
 appendMessage(
   "system",
-  "Willkommen! Stelle deine Frage oder wähle eine eigene Thread-ID, um einen bestehenden Verlauf fortzusetzen."
+  "Willkommen! Stelle deine Frage oder lade ein Dokument hoch, um zu starten."
 );
 messageInput.focus();

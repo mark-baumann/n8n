@@ -11,30 +11,25 @@
       <header>
         <h1>LangGraph RAG Chat</h1>
         <p>
-          Stelle Fragen zu deinen Dokumenten. Wähle eine Thread-ID, um den Verlauf zu
-          speichern – jede Thread-ID besitzt einen eigenen Gesprächsspeicher.
+          Lade ein Dokument hoch, um es anzuzeigen, und stelle Fragen in der Chatbox.
         </p>
       </header>
 
       <main>
-        <section class="chat" id="chat">
-          <ol id="messages" aria-live="polite"></ol>
+        <section class="viewer">
+          <h2>Dokumentvorschau</h2>
+          <embed id="pdf-viewer" src="" type="application/pdf" width="100%" height="600px" />
+          <form id="upload-form" enctype="multipart/form-data">
+            <label for="file-upload">Dokument hochladen:</label>
+            <input type="file" id="file-upload" name="file" accept=".pdf" required />
+            <button type="submit">Hochladen</button>
+          </form>
         </section>
 
-        <section class="controls">
+        <section class="chat">
+          <h2>Chat</h2>
+          <ol id="messages" aria-live="polite"></ol>
           <form id="chat-form">
-            <label class="thread">
-              Thread-ID
-              <input
-                type="text"
-                id="thread"
-                name="thread"
-                placeholder="z. B. demo"
-                value="demo"
-                autocomplete="off"
-              />
-            </label>
-
             <label class="message">
               Nachricht
               <textarea
@@ -45,23 +40,13 @@
                 required
               ></textarea>
             </label>
-
             <div class="actions">
               <button type="submit" id="send">Senden</button>
-              <button type="button" id="reset">Thread leeren</button>
             </div>
           </form>
-          <p class="status" id="status" hidden>Assistent denkt …</p>
         </section>
       </main>
-
-      <footer>
-        <p>
-          Indexiere neue Dokumente mit <code>python -m app.vectorstore.ingest</code>.
-        </p>
-      </footer>
     </div>
-
-    <script src="/static/app.js" defer></script>
+    <script src="/static/app.js"></script>
   </body>
 </html>

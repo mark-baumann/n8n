@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, File, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,8 +23,10 @@ load_dotenv()
 # Build the application graph (this will initialize ChatOpenAI which expects OPENAI_API_KEY)
 graph = get_graph()
 
+UPLOAD_DIR = Path("data/docs")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 class ChatIn(BaseModel):
-    thread_id: str = "default"
     message: str
 
 class ChatOut(BaseModel):
@@ -32,8 +34,7 @@ class ChatOut(BaseModel):
 
 @app.post("/chat", response_model=ChatOut)
 def chat(req: ChatIn):
-    config = {"configurable": {"thread_id": req.thread_id}}
-    result = graph.invoke({"messages": [HumanMessage(content=req.message)]}, config=config)
+    result = graph.invoke({"messages": [HumanMessage(content=req.message)]})
     messages = result.get("messages", [])
     last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
     answer = last_ai.content if last_ai else "No answer."
@@ -43,3 +44,10 @@ def chat(req: ChatIn):
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    file_path = UPLOAD_DIR / file.filename
+    with file_path.open("wb") as buffer:
+        buffer.write(await file.read())
+    return {"filename": file.filename}
