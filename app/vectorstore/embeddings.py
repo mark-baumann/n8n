@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import hashlib
-import math
-import re
-from collections import Counter
 from typing import List, Sequence
 
 from langchain_core.embeddings import Embeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 
 class SimpleOpenAIEmbeddings(Embeddings):
@@ -59,48 +56,5 @@ def build_openai_embeddings(*, model: str) -> Embeddings:
     return SimpleOpenAIEmbeddings(model=model)
 
 
-class LocalHashingEmbeddings(Embeddings):
-    """Kleiner, lokaler Bag-of-Words-Hashing-Embedder ohne externe Downloads."""
-
-    def __init__(self, *, dim: int = 768) -> None:
-        self._dim = max(128, int(dim))
-
-    @staticmethod
-    def _tokenize(text: str) -> List[str]:
-        return re.findall(r"\w+", text.lower())
-
-    def _embed(self, text: str) -> List[float]:
-        tokens = self._tokenize(text)
-        if not tokens:
-            return [0.0] * self._dim
-
-        counts = Counter(tokens)
-        vector = [0.0] * self._dim
-
-        for token, count in counts.items():
-            digest = hashlib.sha1(token.encode("utf-8")).hexdigest()
-            index = int(digest, 16) % self._dim
-            vector[index] += float(count)
-
-        norm = math.sqrt(sum(v * v for v in vector))
-        if norm:
-            vector = [v / norm for v in vector]
-        return vector
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        return [self._embed(text) for text in texts]
-
-    def embed_query(self, text: str) -> List[float]:
-        return self._embed(text)
-
-
-def _parse_hash_dim(model: str) -> int:
-    try:
-        return int(model.rsplit("-", 1)[-1])
-    except (ValueError, IndexError):
-        return 768
-
-
 def build_hf_embeddings(*, model: str) -> Embeddings:
-    dim = _parse_hash_dim(model)
-    return LocalHashingEmbeddings(dim=dim)
+    return HuggingFaceEmbeddings(model_name=model)

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 from typing import List
 
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS, Qdrant
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -16,6 +15,10 @@ from app.vectorstore.retriever import (
     HF_EMBED_MODEL,
     INDEX_DIR,
     OPENAI_EMBED_MODEL,
+    QDRANT_COLLECTION,
+    QDRANT_URL,
+    VECTORSTORE_BACKEND,
+    get_qdrant_client,
 )
 
 DOCS_DIR = os.getenv("DOCS_DIR", "data/docs")
@@ -24,18 +27,10 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
 
 
 def _embedding():
-    provider = EMBEDDINGS_PROVIDER.lower()
-    if provider == "openai":
-        try:
-            return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
-        except Exception as exc:
-            print(
-                "[WARN] Konnte OpenAI-Embeddings nicht initialisieren. Fallback auf "
-                "Hashing-Embeddings.",
-                flush=True,
-            )
-            print(f"        Grund: {exc}", flush=True)
-    return build_hf_embeddings(model=HF_EMBED_MODEL)
+    if EMBEDDINGS_PROVIDER.lower() == "openai":
+        return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
+    else:
+        return build_hf_embeddings(model=HF_EMBED_MODEL)
 
 
 def _load_documents() -> List[Document]:
@@ -51,6 +46,18 @@ def _load_documents() -> List[Document]:
             docs.extend(TextLoader(p, autodetect_encoding=True).load())
         elif p.lower().endswith(".pdf"):
             docs.extend(PyPDFLoader(p).load())
+
+    if not docs:
+        # Fallback: Beispielcontent
+        default_md = base / "example.md"
+        if not default_md.exists():
+            default_md.write_text(
+                "# Beispiel\n\n"
+                "Dies ist ein Beispiel-Dokument für das RAG-System.\n"
+                "Es beschreibt, wie das Projekt aufgebaut ist und dient als Test.\n",
+                encoding="utf-8",
+            )
+        docs.extend(TextLoader(str(default_md), autodetect_encoding=True).load())
 
     return docs
 
@@ -72,38 +79,29 @@ def build_index():
     )
     chunks = splitter.split_documents(docs)
     emb = _embedding()
-    provider_used = EMBEDDINGS_PROVIDER.lower()
+    backend = VECTORSTORE_BACKEND
 
-    try:
-        vs = FAISS.from_documents(chunks, emb)
-    except Exception as exc:
-        if EMBEDDINGS_PROVIDER.lower() == "openai":
-            print(
-                "[WARN] Fehler beim Erzeugen des Index mit OpenAI-Embeddings. "
-                "Versuche Hashing-Embeddings...",
-                flush=True,
-            )
-            try:
-                emb = build_hf_embeddings(model=HF_EMBED_MODEL)
-                vs = FAISS.from_documents(chunks, emb)
-                provider_used = "huggingface"
-            except Exception as hf_exc:  # pragma: no cover - defensive path
-                raise RuntimeError(
-                    "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die "
-                    "Embedding-Backends verfügbar sind."
-                ) from hf_exc
-        else:
+    if backend == "faiss":
+        try:
+            vs = FAISS.from_documents(chunks, emb)
+        except Exception as exc:
             raise RuntimeError(
-                "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die "
-                "Embedding-API erreichbar ist (z. B. Proxy-Konfiguration)."
+                "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die Embedding-API "
+                "erreichbar ist (z. B. Proxy-Konfiguration) oder wechsle per "
+                "EMBEDDINGS_PROVIDER=huggingface auf lokale Modelle."
             ) from exc
-    os.makedirs(INDEX_DIR, exist_ok=True)
-    vs.save_local(INDEX_DIR)
-    print(
-        f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})\n"
-        f"     Verwendeter Embedding-Provider: {provider_used}"
+        os.makedirs(INDEX_DIR, exist_ok=True)
+        vs.save_local(INDEX_DIR)
+        print(
+            f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})"
+        )
+        return
+
+    
+
+    raise ValueError(
+        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss | qdrant"
     )
-    return
 
 
 if __name__ == "__main__":

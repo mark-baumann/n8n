@@ -1,69 +1,21 @@
-const uploadForm = document.getElementById("upload-form");
-const uploadTrigger = document.getElementById("upload-trigger");
-const fileInput = document.getElementById("file-input");
-const actionStatus = document.getElementById("action-status");
-const previewFrame = document.getElementById("preview-frame");
-const previewText = document.getElementById("preview-text");
-const previewPlaceholder = document.getElementById("preview-placeholder");
-
+const form = document.getElementById("chat-form");
 const messagesEl = document.getElementById("messages");
+const threadInput = document.getElementById("thread");
 const messageInput = document.getElementById("message");
 const statusEl = document.getElementById("status");
 const sendBtn = document.getElementById("send");
-const chatDock = document.querySelector(".chat-dock");
+const resetBtn = document.getElementById("reset");
 
 const roles = {
   user: "Du",
   assistant: "Assistent",
+  system: "System",
 };
-
-let activeDocument = null;
-let threadId = crypto.randomUUID().slice(0, 8);
-let statusTimeout = null;
-
-function setBusy(isLoading) {
-  if (uploadForm) {
-    uploadForm.classList.toggle("is-loading", isLoading);
-  }
-  if (uploadTrigger) {
-    uploadTrigger.disabled = isLoading;
-  }
-}
-
-function showStatus(message, { isError = false, persist = false } = {}) {
-  if (!actionStatus) {
-    return;
-  }
-
-  if (statusTimeout) {
-    clearTimeout(statusTimeout);
-    statusTimeout = null;
-  }
-
-  actionStatus.classList.toggle("error", Boolean(isError));
-
-  if (!message) {
-    actionStatus.hidden = true;
-    actionStatus.textContent = "";
-    return;
-  }
-
-  actionStatus.hidden = false;
-  actionStatus.textContent = message;
-
-  if (!persist) {
-    statusTimeout = setTimeout(() => {
-      actionStatus.hidden = true;
-      actionStatus.textContent = "";
-      actionStatus.classList.remove("error");
-      statusTimeout = null;
-    }, 4000);
-  }
-}
 
 function createMessageElement(role, content) {
   const li = document.createElement("li");
-  li.classList.add("message", role);
+  li.classList.add("message");
+  li.classList.add(role);
 
   const roleEl = document.createElement("span");
   roleEl.className = "role";
@@ -78,174 +30,25 @@ function createMessageElement(role, content) {
 }
 
 function appendMessage(role, content) {
-  if (!messagesEl) {
-    return;
-  }
-  const node = createMessageElement(role, content);
-  messagesEl.append(node);
+  const messageNode = createMessageElement(role, content);
+  messagesEl.appendChild(messageNode);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 function setLoading(isLoading) {
-  if (statusEl) {
-    statusEl.hidden = !isLoading;
-  }
-  if (chatDock) {
-    chatDock.classList.toggle("loading", isLoading);
-  }
-  if (sendBtn) {
-    sendBtn.disabled = isLoading;
-  }
-}
-
-function clearPreview() {
-  previewPlaceholder.hidden = false;
-  previewFrame.hidden = true;
-  previewFrame.src = "";
-  previewText.hidden = true;
-  previewText.textContent = "";
-}
-
-function showPreview(doc) {
-  if (!doc) {
-    clearPreview();
-    return;
-  }
-
-  const suffix = doc.suffix ?? "";
-  previewPlaceholder.hidden = true;
-
-  if (suffix === ".pdf") {
-    previewFrame.hidden = false;
-    previewFrame.src = doc.url;
-    previewText.hidden = true;
-    previewText.textContent = "";
-  } else {
-    previewFrame.hidden = true;
-    previewFrame.src = "";
-    previewText.hidden = false;
-    previewText.textContent = doc.preview ?? "(Keine Vorschau verfügbar)";
-  }
-}
-
-function resetConversation() {
-  threadId = crypto.randomUUID().slice(0, 8);
-  if (!messagesEl) {
-    return;
-  }
-  messagesEl.innerHTML = "";
-}
-
-function setActiveDocument(doc, { announce = true } = {}) {
-  const changed = doc?.filename !== activeDocument?.filename;
-  activeDocument = doc ?? null;
-
-  if (!doc) {
-    clearPreview();
-    if (changed && announce) {
-      resetConversation();
-      showStatus("Lade ein Dokument hoch, um loszulegen.", {
-        persist: true,
-      });
-    }
-    return;
-  }
-
-  showPreview(doc);
-  if (changed && announce) {
-    resetConversation();
-    showStatus(`Dokument geöffnet: ${doc.filename}`);
-  }
-}
-
-async function fetchLatestDocument() {
-  try {
-    const response = await fetch("/documents");
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const data = await response.json();
-    const [first] = data.documents ?? [];
-    if (first) {
-      setActiveDocument(first, { announce: false });
-    }
-  } catch (error) {
-    console.error(error);
-    showStatus("Dokumente konnten nicht geladen werden.", {
-      isError: true,
-      persist: true,
-    });
-  }
-}
-
-function extractSuffix(filename) {
-  const match = filename?.match(/\.[^\.]+$/);
-  return match ? match[0].toLowerCase() : "";
-}
-
-async function handleUpload(file) {
-  if (!file) {
-    showStatus("Bitte wähle eine Datei aus.", { isError: true });
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  setBusy(true);
-  showStatus("Datei wird verarbeitet …", { persist: true });
-
-  try {
-    const response = await fetch("/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const message = await response.json().catch(() => ({}));
-      throw new Error(message.detail || `Upload fehlgeschlagen (HTTP ${response.status})`);
-    }
-
-    const doc = await response.json();
-    const suffix = extractSuffix(doc.filename);
-    const enriched = {
-      ...doc,
-      suffix,
-    };
-
-    setBusy(false);
-    showStatus(`Upload erfolgreich – ${doc.filename}`);
-    if (fileInput) {
-      fileInput.value = "";
-    }
-    setActiveDocument(enriched);
-  } catch (error) {
-    console.error(error);
-    setBusy(false);
-    showStatus(error.message, { isError: true, persist: true });
-  }
+  statusEl.hidden = !isLoading;
+  sendBtn.disabled = isLoading;
+  resetBtn.disabled = isLoading;
 }
 
 async function sendMessage(event) {
   event.preventDefault();
-  if (!messageInput) {
-    return;
-  }
-
   const message = messageInput.value.trim();
   if (!message) {
     return;
   }
 
-  if (!activeDocument) {
-    showStatus("Bitte lade zuerst ein Dokument hoch.", {
-      isError: true,
-      persist: true,
-    });
-    messageInput.value = "";
-    return;
-  }
-
+  const threadId = threadInput.value.trim() || "default";
   appendMessage("user", message);
   messageInput.value = "";
   setLoading(true);
@@ -270,34 +73,26 @@ async function sendMessage(event) {
     appendMessage("assistant", data.answer ?? "Keine Antwort erhalten.");
   } catch (error) {
     console.error(error);
-    showStatus(`Fehler beim Antworten: ${error.message}`, {
-      isError: true,
-      persist: true,
-    });
+    appendMessage("system", `Fehler: ${error.message}`);
+    messagesEl.lastChild?.classList.add("error");
   } finally {
     setLoading(false);
-    messageInput?.focus();
+    messageInput.focus();
   }
 }
 
-if (uploadTrigger && fileInput) {
-  uploadTrigger.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => {
-    const [file] = fileInput.files ?? [];
-    handleUpload(file);
-  });
+function resetThread() {
+  messagesEl.innerHTML = "";
+  const threadId = crypto.randomUUID().slice(0, 8);
+  threadInput.value = threadId;
+  appendMessage("system", `Neuer Thread angelegt: ${threadId}`);
 }
 
-if (uploadForm) {
-  uploadForm.addEventListener("submit", (event) => event.preventDefault());
-}
+form.addEventListener("submit", sendMessage);
+resetBtn.addEventListener("click", resetThread);
 
-const chatForm = document.getElementById("chat-form");
-if (chatForm) {
-  chatForm.addEventListener("submit", sendMessage);
-}
-
-resetConversation();
-showStatus("Lade ein Dokument hoch, um zu starten.", { persist: true });
-fetchLatestDocument();
-messageInput?.focus?.();
+appendMessage(
+  "system",
+  "Willkommen! Stelle deine Frage oder wähle eine eigene Thread-ID, um einen bestehenden Verlauf fortzusetzen."
+);
+messageInput.focus();
