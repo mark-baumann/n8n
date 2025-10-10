@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS, Qdrant
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
+from qdrant_client import QdrantClient
 
 from app.vectorstore.embeddings import (
     build_hf_embeddings,
@@ -23,6 +24,16 @@ def _embedding() -> Embeddings:
         return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
     else:
         return build_hf_embeddings(model=HF_EMBED_MODEL)
+
+
+def get_qdrant_client() -> QdrantClient:
+    if not QDRANT_URL:
+        raise RuntimeError(
+            "QDRANT_URL ist nicht gesetzt. Hinterlege die Qdrant-Cloud-URL in der .env Datei."
+        )
+    return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+
+
 def load_vectorstore() -> VectorStore:
     emb = _embedding()
     backend = VECTORSTORE_BACKEND
@@ -31,10 +42,7 @@ def load_vectorstore() -> VectorStore:
         return FAISS.load_local(
             INDEX_DIR, emb, allow_dangerous_deserialization=True
         )
-    raise ValueError(
-        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss"
-    )
-
+    
 
 def get_retriever(k: int = 4):
     vs = load_vectorstore()

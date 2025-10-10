@@ -8,6 +8,7 @@ openai>=1.51.0
 
 # Vectorstore / RAG
 faiss-cpu>=1.8.0
+qdrant-client>=1.11.0
 pypdf>=5.0.0
 
 # Optional: persistent checkpointer

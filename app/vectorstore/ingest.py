@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS, Qdrant
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -15,7 +15,10 @@ from app.vectorstore.retriever import (
     HF_EMBED_MODEL,
     INDEX_DIR,
     OPENAI_EMBED_MODEL,
+    QDRANT_COLLECTION,
+    QDRANT_URL,
     VECTORSTORE_BACKEND,
+    get_qdrant_client,
 )
 
 DOCS_DIR = os.getenv("DOCS_DIR", "data/docs")
@@ -68,23 +71,48 @@ def build_index():
     emb = _embedding()
     backend = VECTORSTORE_BACKEND
 
-    if backend != "faiss":
-        raise ValueError(
-            f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss"
+    if backend == "faiss":
+        try:
+            vs = FAISS.from_documents(chunks, emb)
+        except Exception as exc:
+            raise RuntimeError(
+                "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die Embedding-API "
+                "erreichbar ist (z. B. Proxy-Konfiguration) oder wechsle per "
+                "EMBEDDINGS_PROVIDER=huggingface auf lokale Modelle."
+            ) from exc
+        os.makedirs(INDEX_DIR, exist_ok=True)
+        vs.save_local(INDEX_DIR)
+        print(
+            f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})"
         )
+        return
 
-    try:
-        vs = FAISS.from_documents(chunks, emb)
-    except Exception as exc:
-        raise RuntimeError(
-            "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die Embedding-API "
-            "erreichbar ist (z. B. Proxy-Konfiguration) oder wechsle per "
-            "EMBEDDINGS_PROVIDER=huggingface auf lokale Modelle."
-        ) from exc
-    os.makedirs(INDEX_DIR, exist_ok=True)
-    vs.save_local(INDEX_DIR)
-    print(f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})")
-    return
+    if backend == "qdrant":
+        if not QDRANT_URL:
+            raise RuntimeError(
+                "QDRANT_URL ist nicht gesetzt. Hinterlege die Qdrant-Cloud-URL in der .env Datei."
+            )
+        client = get_qdrant_client()
+        Qdrant.from_documents(
+            chunks,
+            emb,
+            client=client,
+            collection_name=QDRANT_COLLECTION,
+            prefer_grpc=False,
+            force_recreate=True,
+        )
+        collections = client.get_collections()
+        print(
+            f"[OK] {len(chunks)} Chunks in Qdrant-Collection '{QDRANT_COLLECTION}' gespeichert."
+        )
+        names = [c.name for c in getattr(collections, "collections", [])]
+        if names:
+            print(f"       Bekannte Collections: {names}")
+        return
+
+    raise ValueError(
+        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss | qdrant"
+    )
 
 
 if __name__ == "__main__":
