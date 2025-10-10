@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LangGraph RAG Chat</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <header>
+        <h1>LangGraph RAG Chat</h1>
+        <p>
+          Stelle Fragen zu deinen Dokumenten. Wähle eine Thread-ID, um den Verlauf zu
+          speichern – jede Thread-ID besitzt einen eigenen Gesprächsspeicher.
+        </p>
+      </header>
+
+      <main>
+        <section class="chat" id="chat">
+          <ol id="messages" aria-live="polite"></ol>
+        </section>
+
+        <section class="controls">
+          <form id="chat-form">
+            <label class="thread">
+              Thread-ID
+              <input
+                type="text"
+                id="thread"
+                name="thread"
+                placeholder="z. B. demo"
+                value="demo"
+                autocomplete="off"
+              />
+            </label>
+
+            <label class="message">
+              Nachricht
+              <textarea
+                id="message"
+                name="message"
+                placeholder="Frage an den RAG-Assistenten"
+                rows="3"
+                required
+              ></textarea>
+            </label>
+
+            <div class="actions">
+              <button type="submit" id="send">Senden</button>
+              <button type="button" id="reset">Thread leeren</button>
+            </div>
+          </form>
+          <p class="status" id="status" hidden>Assistent denkt …</p>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          Indexiere neue Dokumente mit <code>python -m app.vectorstore.ingest</code>.
+        </p>
+      </footer>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
