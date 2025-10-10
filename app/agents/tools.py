@@ -24,9 +24,11 @@ def _ddg_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
 
 @tool("retrieve", return_direct=False)
 def retrieve_tool(query: str, k: int = 4) -> str:
-    """Rufe relevante Passagen aus dem lokalen Vektorindex ab. Gibt formatierte Auszüge mit Quellen zurück."""
+    """Rufe relevante Passagen aus dem lokalen FAISS-Vektorindex ab und liefere formatierte Auszüge mit Quellen."""
     retriever = get_retriever(k=k)
     docs = retriever.invoke(query)
+    if not docs:
+        return "Keine Dokumente im Index. Lade zuerst ein Dokument hoch."
     return _format_docs(docs)
 
 @tool("web_search", return_direct=False)

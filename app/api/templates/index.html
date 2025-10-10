@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChatMitPDF</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="page">
+    <div class="app-shell">
+      <header class="toolbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">📄</span>
+          <span class="brand-title">ChatMitPDF</span>
+        </div>
+        <form id="upload-form" class="upload-form">
+          <input
+            type="file"
+            id="file-input"
+            name="file"
+            accept=".pdf,.md,.txt"
+            class="upload-input"
+            hidden
+            required
+          />
+          <button type="button" id="upload-trigger" class="upload-button">
+            Dokument hochladen
+          </button>
+          <p id="action-status" class="status-message" hidden></p>
+        </form>
+      </header>
+
+      <main class="layout">
+        <section class="viewer" aria-label="Dokumentvorschau">
+          <iframe id="preview-frame" class="viewer-frame" title="Dokument" hidden></iframe>
+          <pre id="preview-text" class="viewer-text" hidden></pre>
+          <div id="preview-placeholder" class="viewer-placeholder">
+            <p>Lade ein Dokument hoch, um die Vorschau zu öffnen.</p>
+          </div>
+        </section>
+
+        <section class="chat-dock" aria-label="Chat">
+          <ol id="messages" class="messages" aria-live="polite"></ol>
+          <form id="chat-form" class="chat-form">
+            <label class="sr-only" for="message">Frage an den Assistenten</label>
+            <textarea
+              id="message"
+              name="message"
+              rows="2"
+              placeholder="Stelle eine Frage zu Deinem Dokument"
+              required
+            ></textarea>
+            <button type="submit" id="send" class="send-button">Senden</button>
+          </form>
+          <p class="status" id="status" hidden>Assistent denkt …</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

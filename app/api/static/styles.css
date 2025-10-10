@@ -1,0 +1,333 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f172a;
+  --bg-soft: #111c34;
+  --card: rgba(15, 23, 42, 0.72);
+  --border: rgba(255, 255, 255, 0.12);
+  --accent: linear-gradient(120deg, #38bdf8, #6366f1, #a855f7);
+  --accent-solid: #38bdf8;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --shadow: 0 24px 60px rgba(8, 15, 32, 0.55);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.page {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.25), transparent 60%),
+    radial-gradient(circle at 20% 80%, rgba(168, 85, 247, 0.2), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: clamp(1.5rem, 3vw, 3rem);
+}
+
+.app-shell {
+  width: min(1200px, 100%);
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.5rem) clamp(1.2rem, 2.5vw, 2rem);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(14, 165, 233, 0.1));
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+  font-weight: 600;
+}
+
+.brand-mark {
+  font-size: 1.8rem;
+}
+
+.upload-form {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+}
+
+.upload-button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 1.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0b1120;
+  background-image: var(--accent);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 30px rgba(56, 189, 248, 0.35);
+}
+
+.upload-button:hover {
+  transform: translateY(-1px) scale(1.01);
+}
+
+.upload-button:active {
+  transform: translateY(1px);
+}
+
+.upload-form.is-loading .upload-button,
+.upload-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.status-message {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status-message.error {
+  color: #fca5a5;
+}
+
+.layout {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(360px, 1fr) auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.viewer {
+  position: relative;
+  background: var(--bg-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.viewer-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.viewer-text {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  background: rgba(15, 23, 42, 0.85);
+  color: var(--text);
+  overflow: auto;
+  font-family: "JetBrains Mono", "SFMono-Regular", "Menlo", monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.viewer-placeholder {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--muted);
+  max-width: 420px;
+}
+
+.chat-dock {
+  position: relative;
+  background: rgba(15, 23, 42, 0.88);
+  padding: clamp(1rem, 3vw, 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.message {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.message .role {
+  font-weight: 600;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.message .content {
+  margin: 0;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  padding: 0.75rem 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.message.error .content {
+  border-color: rgba(248, 113, 113, 0.65);
+  color: #fecaca;
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.chat-form textarea {
+  resize: none;
+  border-radius: 16px;
+  padding: 0.8rem 1rem;
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-form textarea:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.send-button {
+  appearance: none;
+  border: 0;
+  border-radius: 16px;
+  padding: 0.75rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(99, 102, 241, 0.85);
+  color: #fff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.35);
+}
+
+.send-button:hover {
+  transform: translateY(-1px);
+}
+
+.send-button:active {
+  transform: translateY(1px);
+}
+
+.send-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.chat-dock.loading textarea,
+.chat-dock.loading .send-button {
+  opacity: 0.7;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 768px) {
+  body.page {
+    padding: 1rem;
+  }
+
+  .app-shell {
+    border-radius: 22px;
+  }
+
+  .layout {
+    grid-template-rows: minmax(260px, 1fr) auto;
+  }
+
+  .messages {
+    max-height: 150px;
+  }
+}
+
+@media (max-width: 540px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .upload-form {
+    width: 100%;
+  }
+
+  .upload-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .status-message {
+    position: static;
+  }
+
+  .chat-form {
+    grid-template-columns: 1fr;
+  }
+
+  .send-button {
+    width: 100%;
+  }
+}

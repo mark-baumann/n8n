@@ -1,24 +1,42 @@
 from __future__ import annotations
-import os, glob
+
+import os
+import shutil
 from pathlib import Path
 from typing import List
+
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from app.vectorstore.retriever import INDEX_DIR, EMBEDDINGS_PROVIDER, OPENAI_EMBED_MODEL, HF_EMBED_MODEL
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from app.vectorstore.embeddings import build_hf_embeddings, build_openai_embeddings
+from app.vectorstore.retriever import (
+    EMBEDDINGS_PROVIDER,
+    HF_EMBED_MODEL,
+    INDEX_DIR,
+    OPENAI_EMBED_MODEL,
+)
 
 DOCS_DIR = os.getenv("DOCS_DIR", "data/docs")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
 
+
 def _embedding():
-    if EMBEDDINGS_PROVIDER.lower() == "openai":
-        return OpenAIEmbeddings(model=OPENAI_EMBED_MODEL)
-    else:
-        return HuggingFaceEmbeddings(model_name=HF_EMBED_MODEL)
+    provider = EMBEDDINGS_PROVIDER.lower()
+    if provider == "openai":
+        try:
+            return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
+        except Exception as exc:
+            print(
+                "[WARN] Konnte OpenAI-Embeddings nicht initialisieren. Fallback auf "
+                "Hashing-Embeddings.",
+                flush=True,
+            )
+            print(f"        Grund: {exc}", flush=True)
+    return build_hf_embeddings(model=HF_EMBED_MODEL)
+
 
 def _load_documents() -> List[Document]:
     docs: List[Document] = []
@@ -34,34 +52,59 @@ def _load_documents() -> List[Document]:
         elif p.lower().endswith(".pdf"):
             docs.extend(PyPDFLoader(p).load())
 
-    if not docs:
-        # Fallback: Beispielcontent
-        default_md = base / "example.md"
-        if not default_md.exists():
-            default_md.write_text(
-                "# Beispiel
-
-Dies ist ein Beispiel-Dokument für das RAG-System.
-"
-                "Es beschreibt, wie das Projekt aufgebaut ist und dient als Test.
-",
-                encoding="utf-8"
-            )
-        docs.extend(TextLoader(str(default_md), autodetect_encoding=True).load())
-
     return docs
+
 
 def build_index():
     docs = _load_documents()
+    if not docs:
+        print(
+            "[INFO] Keine Dokumente zum Indizieren gefunden – vorhandener Index wird entfernt.",
+            flush=True,
+        )
+        index_path = Path(INDEX_DIR)
+        if index_path.exists():
+            shutil.rmtree(index_path)
+        return
+
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
     )
     chunks = splitter.split_documents(docs)
     emb = _embedding()
-    vs = FAISS.from_documents(chunks, emb)
+    provider_used = EMBEDDINGS_PROVIDER.lower()
+
+    try:
+        vs = FAISS.from_documents(chunks, emb)
+    except Exception as exc:
+        if EMBEDDINGS_PROVIDER.lower() == "openai":
+            print(
+                "[WARN] Fehler beim Erzeugen des Index mit OpenAI-Embeddings. "
+                "Versuche Hashing-Embeddings...",
+                flush=True,
+            )
+            try:
+                emb = build_hf_embeddings(model=HF_EMBED_MODEL)
+                vs = FAISS.from_documents(chunks, emb)
+                provider_used = "huggingface"
+            except Exception as hf_exc:  # pragma: no cover - defensive path
+                raise RuntimeError(
+                    "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die "
+                    "Embedding-Backends verfügbar sind."
+                ) from hf_exc
+        else:
+            raise RuntimeError(
+                "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die "
+                "Embedding-API erreichbar ist (z. B. Proxy-Konfiguration)."
+            ) from exc
     os.makedirs(INDEX_DIR, exist_ok=True)
     vs.save_local(INDEX_DIR)
-    print(f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})")
+    print(
+        f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})\n"
+        f"     Verwendeter Embedding-Provider: {provider_used}"
+    )
+    return
+
 
 if __name__ == "__main__":
     build_index()
