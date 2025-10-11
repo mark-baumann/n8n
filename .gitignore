@@ -4,3 +4,4 @@
 /app/api/__pycache__/
 /app/vectorstore/__pycache__/
 data/*
+/logs/

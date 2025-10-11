@@ -4,6 +4,28 @@ const messageInput = document.getElementById("message");
 const uploadForm = document.getElementById("upload-form");
 const fileInput = document.getElementById("file-upload");
 const pdfViewer = document.getElementById("pdf-viewer");
+const documentList = document.getElementById("document-list");
+
+async function fetchDocuments() {
+  try {
+    const response = await fetch("/documents");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    documentList.innerHTML = "";
+    data.documents.forEach(doc => {
+      const li = document.createElement("li");
+      li.textContent = doc;
+      li.addEventListener("click", () => {
+        pdfViewer.src = `/data/${doc}`;
+      });
+      documentList.appendChild(li);
+    });
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Dokumente:", error);
+  }
+}
 
 const roles = {
   user: "Du",
@@ -104,6 +126,7 @@ uploadForm.addEventListener("submit", async (event) => {
     const data = await response.json();
     pdfViewer.src = `/data/${data.filename}`;
     alert("Datei erfolgreich hochgeladen.");
+    fetchDocuments();
   } catch (error) {
     console.error(error);
     alert("Fehler beim Hochladen der Datei.");
@@ -114,4 +137,5 @@ appendMessage(
   "system",
   "Willkommen! Stelle deine Frage oder lade ein Dokument hoch, um zu starten."
 );
+fetchDocuments();
 messageInput.focus();

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokumentenbibliothek</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="library-container">
+        <h1>Dokumentenbibliothek</h1>
+        <form id="upload-form" class="upload-form">
+            <input type="file" id="file-upload" name="file" accept=".pdf" required>
+            <button type="submit">Hochladen</button>
+        </form>
+        <div id="document-grid" class="document-grid"></div>
+    </div>
+    <script src="/static/library.js"></script>
+</body>
+</html>

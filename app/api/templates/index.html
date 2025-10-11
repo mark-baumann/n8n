@@ -16,9 +16,14 @@
       </header>
 
       <main>
+        <section class="documents">
+          <h2>Dokumente</h2>
+          <ul id="document-list"></ul>
+        </section>
+
         <section class="viewer">
           <h2>Dokumentvorschau</h2>
-          <embed id="pdf-viewer" src="" type="application/pdf" width="100%" height="600px" />
+          <embed id="pdf-viewer" src="" type="application/pdf" width="100%" />
           <form id="upload-form" enctype="multipart/form-data">
             <label for="file-upload">Dokument hochladen:</label>
             <input type="file" id="file-upload" name="file" accept=".pdf" required />
