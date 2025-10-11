@@ -5,6 +5,7 @@ import os
 from langchain_community.vectorstores import FAISS
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
+from app.paths import get_index_dir
 
 
 from app.vectorstore.embeddings import (
@@ -34,10 +35,8 @@ def load_vectorstore() -> VectorStore:
     backend = _env("VECTORSTORE_BACKEND", "faiss").lower()
 
     if backend == "faiss":
-        index_dir = _env("INDEX_DIR", "data/index/faiss")
-        return FAISS.load_local(
-            index_dir, emb, allow_dangerous_deserialization=True
-        )
+        index_dir = str(get_index_dir())
+        return FAISS.load_local(index_dir, emb, allow_dangerous_deserialization=True)
     
 
 def get_retriever(k: int = 4):

@@ -30,8 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       UIHelpers.debug("Upload erfolgreich", data);
-      UIHelpers.showToast("PDF hochgeladen und indiziert", "success");
-      fetchDocuments();
+      // Index ist serverseitig fertig – Seite neu laden, damit Liste/Cache frisch ist
+      window.location.reload();
     } catch (error) {
       console.error("Fehler beim Hochladen der Datei:", error);
       UIHelpers.showToast("Fehler beim Hochladen.", "error");
@@ -145,4 +145,3 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
-

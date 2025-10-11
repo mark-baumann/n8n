@@ -10,6 +10,11 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.vectorstore.embeddings import build_hf_embeddings, build_openai_embeddings
+from app.paths import get_docs_dir, get_index_dir
+try:
+    from app.api.docs_registry import add_document as _add_doc
+except Exception:
+    _add_doc = None  # type: ignore
 import shutil
 
 
@@ -17,7 +22,7 @@ def _env(key: str, default: str) -> str:
     return os.getenv(key, default)
 
 
-DOCS_DIR = _env("DOCS_DIR", "data/docs")
+DOCS_DIR = str(get_docs_dir())
 CHUNK_SIZE = int(_env("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(_env("CHUNK_OVERLAP", "150"))
 
@@ -46,6 +51,22 @@ def _load_documents() -> List[Document]:
         elif p.lower().endswith(".pdf"):
             docs.extend(PyPDFLoader(p).load())
 
+    # Annotate metadata with file_name and doc_id (stable)
+    for d in docs:
+        try:
+            src = (d.metadata or {}).get("source") or (d.metadata or {}).get("file_path") or ""
+            base = os.path.basename(str(src))
+            d.metadata = dict(d.metadata or {})
+            d.metadata["file_name"] = base
+            if _add_doc is not None:
+                try:
+                    doc_id = _add_doc(base)
+                    d.metadata["doc_id"] = doc_id
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     if not docs:
         # Fallback: Beispielcontent
         default_md = base / "example.md"
@@ -68,7 +89,7 @@ def build_index():
             "[INFO] Keine Dokumente zum Indizieren gefunden – vorhandener Index wird entfernt.",
             flush=True,
         )
-        index_dir = _env("INDEX_DIR", "data/index/faiss")
+        index_dir = str(get_index_dir())
         index_path = Path(index_dir)
         if index_path.exists():
             shutil.rmtree(index_path)
@@ -105,4 +126,3 @@ def build_index():
 
 if __name__ == "__main__":
     build_index()
-

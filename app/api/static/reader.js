@@ -22,7 +22,6 @@ document.addEventListener("DOMContentLoaded", () => {
             .then(info => {
                 if (info && docLabel) {
                     docLabel.textContent = info.filename;
-                    UIHelpers.showToast(`PDF geladen: ${info.filename}`, 'info');
                 }
             })
             .catch((e) => { UIHelpers.debug('doc meta fetch error', e); });

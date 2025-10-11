@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import os
 from typing import Callable, List, Dict, Any, Optional
 from langchain_core.tools import tool
@@ -44,33 +44,23 @@ def retrieve_tool(
     if not docs:
         return "Keine Dokumente im Index. Lade zuerst ein Dokument hoch."
 
-    # Erst nach doc_id filtern, bei leeren Treffern optional über Dateinamen fallbacken
     if doc_id:
         docs_by_id = [d for d in docs if (getattr(d, 'metadata', {}) or {}).get('doc_id') == doc_id]
-        if not docs_by_id and source:
-            import os as _os
-            src_lower = source.lower()
-            def _match_file(d):
-                meta = getattr(d, 'metadata', {}) or {}
-                s = meta.get('source') or meta.get('file_path') or ''
-                b = _os.path.basename(str(s)).lower()
-                return b == src_lower or src_lower in b
-            docs_by_id = [d for d in docs if _match_file(d)]
-        docs = docs_by_id
         if not docs:
             return "Keine Treffer im gewählten Dokument."
 
-    # Falls keine doc_id gegeben war: optional per Dateinamen einschränken
-    if source and not doc_id:
+    if source:
         import os as _os
         src_lower = source.lower()
+
         def _match(d):
             meta = getattr(d, 'metadata', {}) or {}
-            srcv = meta.get("source") or meta.get("file_path") or ""
-            base = _os.path.basename(str(srcv))
+            src = meta.get("source") or meta.get("file_path") or ""
+            base = _os.path.basename(str(src))
             if source_exact:
-                return base.lower() == src_lower or str(srcv).lower() == src_lower
-            return (src_lower in str(srcv).lower()) or (src_lower in base.lower())
+                return base.lower() == src_lower or str(src).lower() == src_lower
+            return (src_lower in str(src).lower()) or (src_lower in base.lower())
+
         docs = [d for d in docs if _match(d)]
         if not docs:
             return "Keine Treffer im gewählten Dokument."
@@ -86,7 +76,7 @@ def list_docs_tool(filter: str | None = None) -> str:
         fl = filter.lower()
         docs = [d for d in docs if fl in d["filename"].lower() or fl in d["id"].lower()]
     if not docs:
-        return "Keine Dokumente im Index. Lade zuerst ein PDF hoch."
+        return "Keine Dokumente im Index. Lade zuerst ein Dokument hoch."
     lines = [f"{d['id']}\t{d['filename']}" for d in docs]
     return "\n".join(lines)
 
@@ -121,4 +111,5 @@ def get_toolset(include_web: Optional[bool] = None):
         tools.append(web_search_tool)
     tool_map: Dict[str, Callable[..., Any]] = {t.name: t for t in tools}
     return tools, tool_map
+
 

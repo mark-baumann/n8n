@@ -8,10 +8,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_openai import ChatOpenAI
 from app.graph import get_graph
 from app.vectorstore.ingest import build_index
 from app.logging_config import setup_logging
+from app.paths import get_docs_dir
 from app.api.docs_registry import ensure_registry, add_document, get_filename, list_documents
+from app.agents.tools import retrieve_tool
 import logging
 
 setup_logging()
@@ -20,7 +23,7 @@ app = FastAPI(title="LangGraph RAG Multi-Agent API")
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-UPLOAD_DIR = Path("data/docs")
+UPLOAD_DIR = get_docs_dir()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.mount("/data", StaticFiles(directory=str(UPLOAD_DIR)), name="data")
@@ -68,6 +71,7 @@ def chat(req: ChatIn):
         if req.document_id or req.document:
             label = req.document_id or req.document
             preferred_source = file_from_id or req.document
+            logging.debug(f"/chat doc-context label={label} resolved_source={preferred_source} thread={thread_id}")
             sys_lines = [
                 f"Kontext: Der Nutzer liest aktuell das Dokument '{label}'.",
                 "Beantworte Fragen AUSSCHLIESSLICH anhand dieses Dokuments.",
@@ -86,17 +90,70 @@ def chat(req: ChatIn):
             state["system"] = "\n".join(sys_lines)
             # Router-Hinweis
             state["doc"] = req.document_id or req.document
+            if req.document_id:
+                state["doc_id"] = req.document_id
         else:
             # Global-Dokumenten-Chat: explizit RAG über alle Dokumente bevorzugen
             state["global_rag"] = True
 
-        result = graph.invoke(
-            state,
-            config={"configurable": {"thread_id": thread_id}},
-        )
-        messages = result.get("messages", [])
-        last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
-        answer = last_ai.content if last_ai else "No answer."
+        # Serverseitiger Doc-RAG-Fallback: Wenn doc_id/source gesetzt sind, hole Passagen direkt und beantworte strikt daraus.
+        answer: str | None = None
+        if req.document_id or req.document:
+            try:
+                tool_args = {"query": req.message, "k": 6}
+                if req.document_id:
+                    tool_args["doc_id"] = req.document_id
+                if file_from_id or req.document:
+                    tool_args["source"] = file_from_id or req.document
+                    tool_args["source_exact"] = True
+                retrieved = retrieve_tool.invoke(tool_args)  # type: ignore
+                # Baue den Kontext primär direkt aus dem PDF
+                context_text: str | None = None
+                base_from_pdf: str | None = None
+                if file_from_id:
+                    try:
+                        from langchain_community.document_loaders import PyPDFLoader  # type: ignore
+                        pdf_path = UPLOAD_DIR / file_from_id
+                        pages = PyPDFLoader(str(pdf_path)).load()
+                        base_from_pdf = "\n\n".join(p.page_content for p in pages[:10])
+                    except Exception:
+                        base_from_pdf = None
+                # Ergänze optional Retrieval-Snippets aus genau diesem Dokument
+                extra = None
+                if isinstance(retrieved, str) and retrieved.strip() and not retrieved.strip().lower().startswith("keine treffer"):
+                    extra = retrieved
+                # Kontext zusammenbauen (PDF-Inhalt hat Priorität)
+                parts = []
+                if base_from_pdf:
+                    parts.append(base_from_pdf[:6000])
+                if extra:
+                    parts.append(extra[:2000])
+                context_text = "\n\n".join(parts) if parts else None
+                # Kurze, strikte Antwort aus Kontext erzeugen
+                if context_text:
+                    llm = ChatOpenAI(model=os.getenv("MODEL_NAME", "gpt-4o-mini"), temperature=0)
+                    sys = (
+                        "Antworte ausschließlich anhand des folgenden Kontexts zum aktuellen PDF. "
+                        "Erfinde nichts. Wenn der Kontext die Frage nicht beantwortet, antworte: 'Keine Treffer im aktuellen Dokument.'"
+                    )
+                    prompt = [
+                        {"role": "system", "content": sys},
+                        {"role": "user", "content": f"Kontext:\n{context_text}\n\nFrage:\n{req.message}"},
+                    ]
+                    ai = llm.invoke(prompt)
+                    answer = ai.content if hasattr(ai, "content") else str(ai)
+            except Exception as _e:
+                # Fallback auf Graph unten
+                pass
+
+        if answer is None:
+            result = graph.invoke(
+                state,
+                config={"configurable": {"thread_id": thread_id}},
+            )
+            messages = result.get("messages", [])
+            last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
+            answer = last_ai.content if last_ai else "No answer."
         return ChatOut(answer=answer)  # type: ignore
     except Exception as e:
         logging.error(f"Error in chat endpoint: {e}", exc_info=True)
@@ -148,11 +205,16 @@ def reindex():
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     file_path = UPLOAD_DIR / file.filename
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     with file_path.open("wb") as buffer:
         buffer.write(await file.read())
+    if not file_path.exists() or file_path.stat().st_size == 0:
+        logging.error(f"Upload failed or empty file: {file_path}")
+        return JSONResponse(status_code=500, content={"error": "Upload fehlgeschlagen."})
     # Nach Upload: Index neu aufbauen, damit das Dokument im RAG erscheint
     try:
         doc_id = add_document(file.filename)
+        logging.info(f"Uploaded PDF saved at: {file_path}")
         build_index()
     except Exception as e:
         logging.error(f"Fehler beim Neuaufbau des Index nach Upload: {e}")

@@ -73,15 +73,25 @@ async function sendMessage(event) {
   messageInput.value = "";
   setLoading(true);
 
-  try {
+    try {
+    // include optional thread/document context if a PDF is currently loaded in the viewer
+    const currentSrc = pdfViewer?.src || null;
+    let docId = null;
+    if (currentSrc && currentSrc.includes('/data_by_id/')) {
+      const parts = currentSrc.split('/data_by_id/');
+      docId = parts[1] ? decodeURIComponent(parts[1]) : null;
+    }
+    const payload = { message };
+    if (docId) payload.document_id = docId;
+    // set thread_id so the server/checkpointer keeps chat sessions separate per document
+    payload.thread_id = docId ? `doc:${docId}` : "default";
+
     const response = await fetch("/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        message,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {

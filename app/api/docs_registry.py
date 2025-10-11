@@ -5,7 +5,9 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
-DOCS_DIR = Path(os.getenv("DOCS_DIR", "data/docs"))
+from app.paths import get_docs_dir
+
+DOCS_DIR = get_docs_dir()
 REGISTRY_PATH = DOCS_DIR / "registry.json"
 
 
