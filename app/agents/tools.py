@@ -4,6 +4,7 @@ from typing import Callable, List, Dict, Any, Optional
 from langchain_core.tools import tool
 from duckduckgo_search import DDGS
 from app.vectorstore.retriever import get_retriever
+from app.api.docs_registry import list_documents
 
 ENABLE_WEBSEARCH = os.getenv("ENABLE_WEBSEARCH", "false").lower() == "true"
 WEBSEARCH_BACKEND = os.getenv("WEBSEARCH_BACKEND", "duckduckgo").lower()
@@ -44,6 +45,18 @@ def retrieve_tool(query: str, k: int = 4, source: str | None = None, source_exac
             return "Keine Treffer im gewählten Dokument."
     return _format_docs(docs)
 
+@tool("list_docs", return_direct=False)
+def list_docs_tool(filter: str | None = None) -> str:
+    """Liste indizierte Dokumente auf. Optional mit 'filter' (Dateiname-Teilstring)."""
+    docs = list_documents()
+    if filter:
+        fl = filter.lower()
+        docs = [d for d in docs if fl in d["filename"].lower() or fl in d["id"].lower()]
+    if not docs:
+        return "Keine Dokumente vorhanden. Lade zuerst ein PDF hoch."
+    lines = [f"{d['id']}\t{d['filename']}" for d in docs]
+    return "\n".join(lines)
+
 @tool("web_search", return_direct=False)
 def web_search_tool(query: str, max_results: int = 5) -> str:
     """Websuche (DuckDuckGo ohne API-Key). Liefert eine kompakte Ergebnisliste (Titel, Link, Snippet)."""
@@ -68,7 +81,7 @@ def web_search_tool(query: str, max_results: int = 5) -> str:
 
 def get_toolset(include_web: Optional[bool] = None):
     include_web = ENABLE_WEBSEARCH if include_web is None else include_web
-    tools = [retrieve_tool]
+    tools = [retrieve_tool, list_docs_tool]
     if include_web:
         tools.append(web_search_tool)
     # Mapping für manuelle Toolausführung

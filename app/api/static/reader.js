@@ -7,14 +7,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatToggle = document.getElementById("chat-toggle");
     const chatClose = document.getElementById("chat-close");
     const docLabel = document.getElementById("doc-label");
+    const aboutDocBtn = document.getElementById("about-doc");
 
     const urlParams = new URLSearchParams(window.location.search);
-    const documentName = urlParams.get("document");
-    let threadId = documentName ? `doc:${documentName}` : "default";
+    const documentId = urlParams.get("doc_id");
+    let threadId = documentId ? `doc:${documentId}` : "default";
+    UIHelpers.debug("Reader init", { documentId, threadId });
 
-    if (documentName) {
-        pdfViewer.src = `/data/${documentName}`;
-        if (docLabel) docLabel.textContent = documentName;
+    if (documentId) {
+        pdfViewer.src = `/data_by_id/${encodeURIComponent(documentId)}`;
+        // Fetch filename for label
+        fetch(`/document/${encodeURIComponent(documentId)}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(info => {
+                if (info && docLabel) {
+                    docLabel.textContent = info.filename;
+                    UIHelpers.showToast(`PDF geladen: ${info.filename}`, 'info');
+                }
+            })
+            .catch((e) => { UIHelpers.debug('doc meta fetch error', e); });
     }
 
     // Toggle chat drawer
@@ -47,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 body: JSON.stringify({
                     message,
-                    document: documentName || null,
+                    document_id: documentId || null,
                     thread_id: threadId,
                 }),
             });
@@ -58,11 +69,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const data = await response.json();
             appendMessage("assistant", data.answer ?? "Keine Antwort erhalten.");
+            UIHelpers.showToast("Antwort erhalten", "success");
         } catch (error) {
             console.error(error);
+            UIHelpers.showToast("Chat-Fehler", "error");
             appendMessage("system", `Fehler: ${error.message}`);
         }
     });
+
+    // About this PDF quick action
+    if (aboutDocBtn) {
+        aboutDocBtn.addEventListener("click", async () => {
+            appendMessage("user", "Über dieses PDF");
+            UIHelpers.debug("Quick action: Über dieses PDF", { documentId });
+            try {
+                const response = await fetch("/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: "Fasse das aktuelle PDF kurz zusammen: Thema, Zweck, wichtigste Punkte und Struktur.",
+                        document_id: documentId || null,
+                        thread_id: threadId,
+                    }),
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                appendMessage("assistant", data.answer ?? "Keine Antwort erhalten.");
+                UIHelpers.showToast("Zusammenfassung erstellt", "success");
+            } catch (error) {
+                console.error(error);
+                UIHelpers.showToast("Chat-Fehler", "error");
+                appendMessage("system", `Fehler: ${error.message}`);
+            }
+        });
+    }
 
     function appendMessage(role, content) {
         const messageElement = document.createElement("div");

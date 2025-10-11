@@ -10,25 +10,26 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.vectorstore.embeddings import build_hf_embeddings, build_openai_embeddings
-from app.vectorstore.retriever import (
-    EMBEDDINGS_PROVIDER,
-    HF_EMBED_MODEL,
-    INDEX_DIR,
-    OPENAI_EMBED_MODEL,
-    VECTORSTORE_BACKEND,
-)
 import shutil
 
-DOCS_DIR = os.getenv("DOCS_DIR", "data/docs")
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
+
+def _env(key: str, default: str) -> str:
+    return os.getenv(key, default)
+
+
+DOCS_DIR = _env("DOCS_DIR", "data/docs")
+CHUNK_SIZE = int(_env("CHUNK_SIZE", "1000"))
+CHUNK_OVERLAP = int(_env("CHUNK_OVERLAP", "150"))
 
 
 def _embedding():
-    if EMBEDDINGS_PROVIDER.lower() == "openai":
-        return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
+    provider = _env("EMBEDDINGS_PROVIDER", "huggingface").lower()
+    if provider == "openai":
+        model = _env("EMBEDDING_MODEL", "text-embedding-3-small")
+        return build_openai_embeddings(model=model)
     else:
-        return build_hf_embeddings(model=HF_EMBED_MODEL)
+        model = _env("HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        return build_hf_embeddings(model=model)
 
 
 def _load_documents() -> List[Document]:
@@ -67,7 +68,8 @@ def build_index():
             "[INFO] Keine Dokumente zum Indizieren gefunden – vorhandener Index wird entfernt.",
             flush=True,
         )
-        index_path = Path(INDEX_DIR)
+        index_dir = _env("INDEX_DIR", "data/index/faiss")
+        index_path = Path(index_dir)
         if index_path.exists():
             shutil.rmtree(index_path)
         return
@@ -77,7 +79,7 @@ def build_index():
     )
     chunks = splitter.split_documents(docs)
     emb = _embedding()
-    backend = VECTORSTORE_BACKEND
+    backend = _env("VECTORSTORE_BACKEND", "faiss").lower()
 
     if backend == "faiss":
         try:
@@ -85,22 +87,22 @@ def build_index():
         except Exception as exc:
             raise RuntimeError(
                 "Konnte den FAISS-Index nicht aufbauen. Prüfe bitte, ob die Embedding-API "
-                "erreichbar ist (z. B. Proxy-Konfiguration) oder wechsle per "
+                "erreichbar ist (z. B. Proxy-Konfiguration) oder wechsle per "
                 "EMBEDDINGS_PROVIDER=huggingface auf lokale Modelle."
             ) from exc
-        os.makedirs(INDEX_DIR, exist_ok=True)
-        vs.save_local(INDEX_DIR)
+        index_dir = _env("INDEX_DIR", "data/index/faiss")
+        os.makedirs(index_dir, exist_ok=True)
+        vs.save_local(index_dir)
         print(
-            f"[OK] FAISS-Index gespeichert unter: {INDEX_DIR}  (Chunks: {len(chunks)})"
+            f"[OK] FAISS-Index gespeichert unter: {index_dir}  (Chunks: {len(chunks)})"
         )
         return
 
-    
-
     raise ValueError(
-        f"Unbekannter VECTORSTORE_BACKEND '{VECTORSTORE_BACKEND}'. Erlaubt: faiss"
+        f"Unbekannter VECTORSTORE_BACKEND '{backend}'. Erlaubt: faiss"
     )
 
 
 if __name__ == "__main__":
     build_index()
+

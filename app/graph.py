@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import os, json
 from typing import Dict, Any, Literal, Callable
 from typing_extensions import TypedDict
@@ -15,6 +15,12 @@ except Exception:
 
 from app.schemas import AppState
 from app.agents.tools import get_toolset
+from app.vectorstore.retriever import get_retriever
+try:
+    # for mapping doc_id -> filename
+    from app.api.docs_registry import get_filename as _get_doc_filename
+except Exception:
+    _get_doc_filename = lambda _x: None  # type: ignore
 from app.agents.router import route_message
 
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
@@ -41,7 +47,7 @@ def _should_call_tools(messages: list[BaseMessage]) -> bool:
         return True
     return False
 
-def _exec_toolcalls(tool_map: Dict[str, Callable[..., Any]], ai_msg: AIMessage) -> list[ToolMessage]:
+def _exec_toolcalls(tool_map: Dict[str, Callable[..., Any]], ai_msg: AIMessage, state: dict | None = None) -> list[ToolMessage]:
     out: list[ToolMessage] = []
     calls = ai_msg.tool_calls or ai_msg.additional_kwargs.get("tool_calls") or []
     for c in calls:
@@ -53,6 +59,25 @@ def _exec_toolcalls(tool_map: Dict[str, Callable[..., Any]], ai_msg: AIMessage) 
                 args = _json.loads(args)
             except Exception:
                 args = {"input": args}
+        # Enforce per-document restriction for retrieve/list_docs when a document context exists
+        if name in ("retrieve", "list_docs") and state is not None:
+            try:
+                doc_label = state.get("doc") or state.get("document")
+                if doc_label:
+                    src_file = _get_doc_filename(doc_label) if callable(_get_doc_filename) else None
+                    if not src_file and isinstance(doc_label, str) and doc_label.lower().endswith(".pdf"):
+                        src_file = doc_label
+                    if src_file:
+                        if not isinstance(args, dict):
+                            args = {}
+                        if name == "retrieve":
+                            args.setdefault("source", src_file)
+                            args.setdefault("source_exact", True)
+                        elif name == "list_docs":
+                            # apply filename filter
+                            args.setdefault("filter", os.path.basename(str(src_file)))
+            except Exception:
+                pass
         fn = tool_map.get(name)
         if fn is None:
             result = f"Tool '{name}' nicht gefunden."
@@ -73,17 +98,75 @@ def _mk_assistant(system_prompt: str, tools_enabled: bool):
 
     def node(state: AppState) -> dict:
         messages = state.get("messages", [])
+
+        # Sanitize history: remove any assistant message with tool_calls
+        # that is not immediately followed by a ToolMessage. This avoids
+        # OpenAI Chat API 400 errors on invalid sequences.
+        cleaned: list[BaseMessage] = []
+        for i, m in enumerate(messages):
+            if isinstance(m, AIMessage) and (getattr(m, "tool_calls", None) or getattr(m, "additional_kwargs", {}).get("tool_calls")):
+                nxt = messages[i + 1] if i + 1 < len(messages) else None
+                if nxt is None or not isinstance(nxt, ToolMessage):
+                    # skip unresolved tool-call assistant messages
+                    continue
+            cleaned.append(m)
+
         # prepend base system prompt + optional dynamic system context from state
         extra_sys = state.get("system") if isinstance(state, dict) else None
         sys_content = system_prompt if not extra_sys else f"{system_prompt}\n\n{extra_sys}"
-        msgs = [{"role":"system","content": sys_content}] + [m for m in messages]
+
+        # Optionale RAG-Vorabrretrieval: Wenn ein Dokument gesetzt ist, hole Kontextextrakte
+        context_msgs = []
+        try:
+            doc_label = state.get("doc") if isinstance(state, dict) else None
+            # Ermittele Dateiname Ã¼ber Registry, falls ID Ã¼bergeben wurde
+            src_file = None
+            if doc_label:
+                src_file = _get_doc_filename(doc_label) or (doc_label if str(doc_label).lower().endswith(".pdf") else None)
+
+            if src_file:
+                # letzte Userfrage bestimmen
+                user_text = ""
+                for msg in reversed(cleaned):
+                    if isinstance(msg, HumanMessage):
+                        user_text = msg.content  # type: ignore
+                        break
+                if user_text:
+                    retriever = get_retriever(k=6)
+                    docs = retriever.invoke(user_text)
+                    # Filter nur dieses PDF
+                    import os as _os
+                    base_src = _os.path.basename(str(src_file)).lower()
+                    def _match(d):
+                        meta = getattr(d, 'metadata', {}) or {}
+                        s = (meta.get('source') or meta.get('file_path') or '')
+                        b = _os.path.basename(str(s)).lower()
+                        return b == base_src or base_src in b
+                    docs = [d for d in docs if _match(d)]
+                    if docs:
+                        # Kompakter Kontext
+                        parts = []
+                        for i, d in enumerate(docs, 1):
+                            text = (getattr(d, 'page_content', '') or '').strip()
+                            if not text:
+                                continue
+                            parts.append(f"[{i}] {text[:900]}")
+                        if parts:
+                            context_text = (
+                                f"KontextauszÃ¼ge aus {base_src} fÃ¼r die Beantwortung der Frage:\n\n" + "\n\n".join(parts)
+                            )
+                            context_msgs.append({"role": "system", "content": context_text})
+        except Exception:
+            pass
+
+        msgs = ([{"role":"system","content": sys_content}] + context_msgs + [m for m in cleaned])
         ai = llm.invoke(msgs)
         return {"messages": [ai]}
     def call_tools(state: AppState) -> dict:
-        # führt Tools aus und hängt ToolMessages an
+        # fÃ¼hrt Tools aus und hÃ¤ngt ToolMessages an
         messages = state.get("messages", [])
         last = messages[-1]
-        tool_messages = _exec_toolcalls(tool_map, last)  # type: ignore
+        tool_messages = _exec_toolcalls(tool_map, last, state)  # type: ignore
         return {"messages": tool_messages}
     def after(state: AppState) -> Literal["tools", "__end__"]:
         return "tools" if _should_call_tools(state.get("messages", [])) else "__end__"
@@ -92,12 +175,13 @@ def _mk_assistant(system_prompt: str, tools_enabled: bool):
 def build_graph():
     # Router entscheidet die Route
     def router(state: AppState) -> dict:
-        # Wenn ein Dokument-Kontext gesetzt ist, bevorzuge RAG
-        doc_ctx = None
+        # Erzwinge RAG, wenn global_rag oder doc-Kontext gesetzt ist
         if isinstance(state, dict):
+            if state.get("global_rag"):
+                return {"route": "rag"}
             doc_ctx = state.get("doc") or state.get("document")
-        if doc_ctx:
-            return {"route": "rag"}
+            if doc_ctx:
+                return {"route": "rag"}
 
         # Sonst: Nimm die letzte User-Nachricht und route per LLM
         user_text = ""
@@ -121,8 +205,13 @@ def build_graph():
     )
     rag_node, rag_tools, rag_after = _mk_assistant(
         system_prompt=(
-            "You are a RAG agent. When you need external info, call the 'retrieve' tool. "
-            "Cite sources as [n] if provided in tool results. Avoid generic greetings; focus on the current task."
+            "You are a RAG agent. Answer strictly grounded in the indexed documents. "
+            "If a document context is present, treat ALL questions as referring ONLY to that document. "
+            "Do not include information from other documents. Do not rely on general knowledge. "
+            "Always use the 'retrieve' tool to fetch passages (filters may be pre-filled to that document). "
+            "For vague prompts like 'um was geht es hier', produce a concise summary of the current document: topic, purpose, key points, structure. "
+            "For overviews across the corpus (no document context), you may use 'list_docs' and 'retrieve' without filters. "
+            "Cite sources as [n] when available. Avoid generic greetings and avoid asking clarifying questions first."
         ),
         tools_enabled=True,
     )
@@ -155,7 +244,7 @@ def build_graph():
         return route
     graph.add_conditional_edges("router", route_edge, {"direct":"direct","rag":"rag","web":"web"})
 
-    # Loops pro Agent (Tool-Calls, dann zurück)
+    # Loops pro Agent (Tool-Calls, dann zurÃ¼ck)
     graph.add_conditional_edges("direct", direct_after, {"tools": "direct_tools", "__end__": END})
     graph.add_edge("direct_tools", "direct")
 
@@ -171,3 +260,4 @@ def build_graph():
 # Exponiere eine globale Fabrik
 def get_graph():
     return build_graph()
+

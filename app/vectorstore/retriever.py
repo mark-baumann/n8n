@@ -12,18 +12,18 @@ from app.vectorstore.embeddings import (
     build_openai_embeddings,
 )
 
-INDEX_DIR = os.getenv("INDEX_DIR", "data/index/faiss")
-EMBEDDINGS_PROVIDER = os.getenv("EMBEDDINGS_PROVIDER", "huggingface")
-OPENAI_EMBED_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-HF_EMBED_MODEL = os.getenv("HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-VECTORSTORE_BACKEND = os.getenv("VECTORSTORE_BACKEND", "faiss").lower()
+def _env(key: str, default: str) -> str:
+    return os.getenv(key, default)
 
 
 def _embedding() -> Embeddings:
-    if EMBEDDINGS_PROVIDER.lower() == "openai":
-        return build_openai_embeddings(model=OPENAI_EMBED_MODEL)
+    provider = _env("EMBEDDINGS_PROVIDER", "huggingface").lower()
+    if provider == "openai":
+        model = _env("EMBEDDING_MODEL", "text-embedding-3-small")
+        return build_openai_embeddings(model=model)
     else:
-        return build_hf_embeddings(model=HF_EMBED_MODEL)
+        model = _env("HF_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+        return build_hf_embeddings(model=model)
 
 
 
@@ -31,11 +31,12 @@ def _embedding() -> Embeddings:
 
 def load_vectorstore() -> VectorStore:
     emb = _embedding()
-    backend = VECTORSTORE_BACKEND
+    backend = _env("VECTORSTORE_BACKEND", "faiss").lower()
 
     if backend == "faiss":
+        index_dir = _env("INDEX_DIR", "data/index/faiss")
         return FAISS.load_local(
-            INDEX_DIR, emb, allow_dangerous_deserialization=True
+            index_dir, emb, allow_dangerous_deserialization=True
         )
     
 

@@ -159,7 +159,38 @@ body {
     cursor: pointer;
 }
 
+.chat-form #about-doc {
+    background-color: #0ea5e9; /* blue-500 */
+}
+
 .chat-message { padding: 0.5rem 0; }
 .chat-message.user { text-align: right; }
 .chat-message.assistant { color: var(--primary-color); }
+
+/* Toasts */
+#toast-container {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 2000;
+}
+.toast {
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.2s ease;
+}
+.toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+.toast.info { background: rgba(15, 23, 42, 0.9); }
+.toast.success { background: rgba(22, 163, 74, 0.95); }
+.toast.error { background: rgba(220, 38, 38, 0.95); }
 

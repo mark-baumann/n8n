@@ -15,6 +15,23 @@
         </form>
         <div id="document-grid" class="document-grid"></div>
     </div>
+    <button id="chat-toggle" class="chat-fab" aria-label="Chat mit allen PDFs">💬</button>
+    <aside id="chat-drawer" class="chat-drawer" aria-hidden="true">
+        <div class="chat-header">
+            <div>
+                <strong>Globaler Dokumenten-Chat</strong>
+                <div class="doc-label">Fragen über alle indizierten PDFs</div>
+            </div>
+            <button id="chat-close" class="chat-close" aria-label="Chat schließen">×</button>
+        </div>
+        <div id="chat-history" class="chat-history"></div>
+        <form id="chat-form" class="chat-form" autocomplete="off">
+            <button type="button" id="about-all" title="Über alle PDFs">Über alle PDFs</button>
+            <input type="text" id="message" placeholder="Frage über alle Dokumente…" />
+            <button type="submit">Senden</button>
+        </form>
+    </aside>
+    <script src="/static/common.js"></script>
     <script src="/static/library.js"></script>
 </body>
 </html>
