@@ -73,8 +73,10 @@ def _mk_assistant(system_prompt: str, tools_enabled: bool):
 
     def node(state: AppState) -> dict:
         messages = state.get("messages", [])
-        # prepend system
-        msgs = [{"role":"system","content":system_prompt}] + [m for m in messages]
+        # prepend base system prompt + optional dynamic system context from state
+        extra_sys = state.get("system") if isinstance(state, dict) else None
+        sys_content = system_prompt if not extra_sys else f"{system_prompt}\n\n{extra_sys}"
+        msgs = [{"role":"system","content": sys_content}] + [m for m in messages]
         ai = llm.invoke(msgs)
         return {"messages": [ai]}
     def call_tools(state: AppState) -> dict:
@@ -90,7 +92,14 @@ def _mk_assistant(system_prompt: str, tools_enabled: bool):
 def build_graph():
     # Router entscheidet die Route
     def router(state: AppState) -> dict:
-        # Nimm die letzte User-Nachricht
+        # Wenn ein Dokument-Kontext gesetzt ist, bevorzuge RAG
+        doc_ctx = None
+        if isinstance(state, dict):
+            doc_ctx = state.get("doc") or state.get("document")
+        if doc_ctx:
+            return {"route": "rag"}
+
+        # Sonst: Nimm die letzte User-Nachricht und route per LLM
         user_text = ""
         for msg in reversed(state.get("messages", [])):
             if hasattr(msg, "type") and getattr(msg, "type") == "human":
@@ -106,21 +115,21 @@ def build_graph():
     direct_node, direct_tools, direct_after = _mk_assistant(
         system_prompt=(
             "You are a helpful assistant. Answer directly and concisely. "
-            "Do not fabricate sources."
+            "Do not fabricate sources. Avoid generic greetings; respond to the task immediately."
         ),
         tools_enabled=False,
     )
     rag_node, rag_tools, rag_after = _mk_assistant(
         system_prompt=(
             "You are a RAG agent. When you need external info, call the 'retrieve' tool. "
-            "Cite sources as [n] if provided in tool results."
+            "Cite sources as [n] if provided in tool results. Avoid generic greetings; focus on the current task."
         ),
         tools_enabled=True,
     )
     web_node, web_tools, web_after = _mk_assistant(
         system_prompt=(
             "You are a web search agent. Prefer the 'web_search' tool for current facts. "
-            "Summarize and include short source list."
+            "Summarize and include short source list. Avoid generic greetings."
         ),
         tools_enabled=True,
     )

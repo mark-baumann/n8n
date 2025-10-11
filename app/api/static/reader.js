@@ -1,15 +1,33 @@
 document.addEventListener("DOMContentLoaded", () => {
     const pdfViewer = document.getElementById("pdf-viewer");
+    const chatDrawer = document.getElementById("chat-drawer");
     const chatHistory = document.getElementById("chat-history");
     const chatForm = document.getElementById("chat-form");
     const messageInput = document.getElementById("message");
+    const chatToggle = document.getElementById("chat-toggle");
+    const chatClose = document.getElementById("chat-close");
+    const docLabel = document.getElementById("doc-label");
 
     const urlParams = new URLSearchParams(window.location.search);
     const documentName = urlParams.get("document");
+    let threadId = documentName ? `doc:${documentName}` : "default";
 
     if (documentName) {
         pdfViewer.src = `/data/${documentName}`;
+        if (docLabel) docLabel.textContent = documentName;
     }
+
+    // Toggle chat drawer
+    function openDrawer() {
+        chatDrawer.classList.add("open");
+        chatDrawer.setAttribute("aria-hidden", "false");
+    }
+    function closeDrawer() {
+        chatDrawer.classList.remove("open");
+        chatDrawer.setAttribute("aria-hidden", "true");
+    }
+    if (chatToggle) chatToggle.addEventListener("click", openDrawer);
+    if (chatClose) chatClose.addEventListener("click", closeDrawer);
 
     chatForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -29,6 +47,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 body: JSON.stringify({
                     message,
+                    document: documentName || null,
+                    thread_id: threadId,
                 }),
             });
 

@@ -23,12 +23,25 @@ def _ddg_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
     return results
 
 @tool("retrieve", return_direct=False)
-def retrieve_tool(query: str, k: int = 4) -> str:
+def retrieve_tool(query: str, k: int = 4, source: str | None = None, source_exact: bool = False) -> str:
     """Rufe relevante Passagen aus dem lokalen FAISS-Vektorindex ab und liefere formatierte Auszüge mit Quellen."""
     retriever = get_retriever(k=k)
     docs = retriever.invoke(query)
     if not docs:
         return "Keine Dokumente im Index. Lade zuerst ein Dokument hoch."
+    if source:
+        import os as _os
+        src_lower = source.lower()
+        def _match(d):
+            meta = getattr(d, 'metadata', {}) or {}
+            src = meta.get("source") or meta.get("file_path") or ""
+            base = _os.path.basename(str(src))
+            if source_exact:
+                return base.lower() == src_lower or str(src).lower() == src_lower
+            return (src_lower in str(src).lower()) or (src_lower in base.lower())
+        docs = [d for d in docs if _match(d)]
+        if not docs:
+            return "Keine Treffer im gewählten Dokument."
     return _format_docs(docs)
 
 @tool("web_search", return_direct=False)

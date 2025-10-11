@@ -32,6 +32,7 @@ graph = get_graph()
 
 class ChatIn(BaseModel):
     message: str
+    document: str | None = None
     thread_id: str | None = None
 
 class ChatOut(BaseModel):
@@ -40,9 +41,26 @@ class ChatOut(BaseModel):
 @app.post("/chat", response_model=ChatOut)
 def chat(req: ChatIn):
     try:
-        thread_id = req.thread_id or "default"
+        # Use document-scoped thread by default
+        thread_id = req.thread_id or (f"doc:{req.document}" if req.document else "default")
+
+        # If a document is active, add a dynamic system context so agents ground responses
+        state: dict = {"messages": [HumanMessage(content=req.message)]}
+        if req.document:
+            state["system"] = (
+                "Kontext: Der Nutzer liest aktuell das Dokument '"
+                + req.document
+                + "'. Beantworte Fragen bevorzugt anhand dieses Dokuments.\n"
+                "Wenn du das Tool 'retrieve' verwendest, gib das Argument 'source' mit dem Dateinamen des Dokuments an,\n"
+                "z. B.: retrieve(query=..., k=4, source='"
+                + req.document
+                + "')."
+            )
+            # Zusätzlich den Dokument-Kontext als Feld mitgeben (Router nutzt dies)
+            state["doc"] = req.document
+
         result = graph.invoke(
-            {"messages": [HumanMessage(content=req.message)]},
+            state,
             config={"configurable": {"thread_id": thread_id}},
         )
         messages = result.get("messages", [])
@@ -73,4 +91,9 @@ async def upload_file(file: UploadFile = File(...)):
     file_path = UPLOAD_DIR / file.filename
     with file_path.open("wb") as buffer:
         buffer.write(await file.read())
+    # Nach Upload: Index neu aufbauen, damit das Dokument im RAG erscheint
+    try:
+        build_index()
+    except Exception as e:
+        logging.error(f"Fehler beim Neuaufbau des Index nach Upload: {e}")
     return {"filename": file.filename}
