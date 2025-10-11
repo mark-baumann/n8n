@@ -32,6 +32,7 @@ graph = get_graph()
 
 class ChatIn(BaseModel):
     message: str
+    thread_id: str | None = None
 
 class ChatOut(BaseModel):
     answer: str
@@ -39,7 +40,11 @@ class ChatOut(BaseModel):
 @app.post("/chat", response_model=ChatOut)
 def chat(req: ChatIn):
     try:
-        result = graph.invoke({"messages": [HumanMessage(content=req.message)]})
+        thread_id = req.thread_id or "default"
+        result = graph.invoke(
+            {"messages": [HumanMessage(content=req.message)]},
+            config={"configurable": {"thread_id": thread_id}},
+        )
         messages = result.get("messages", [])
         last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
         answer = last_ai.content if last_ai else "No answer."

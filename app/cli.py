@@ -9,7 +9,8 @@ def run_cli(initial: str | None):
 
     def turn(user_text: str):
         state = {"messages": [HumanMessage(content=user_text)]}
-        result = graph.invoke(state)
+        # Provide a fixed thread_id for the CLI session
+        result = graph.invoke(state, config={"configurable": {"thread_id": "cli"}})
         messages = result.get("messages", [])
         last_ai = next((m for m in reversed(messages) if isinstance(m, AIMessage)), None)
         if last_ai:
