@@ -88,3 +88,6 @@ lefthook-local.yml
 IMPROVEMENTS.md
 .playwright-mcp
 stryker.log
+wandb_runs/
+checkpoints/
+*.jsonl
