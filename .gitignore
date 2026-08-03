@@ -91,3 +91,5 @@ stryker.log
 wandb_runs/
 checkpoints/
 *.jsonl
+__pycache__/
+*.pyc
